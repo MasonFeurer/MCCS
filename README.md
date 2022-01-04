@@ -1,5 +1,5 @@
 # MCCS
-MCCS (Minecraft Command Script) is a programming language designed to make datapack development easier.
+MCCS (Minecraft Command Script) is a programming language designed to make <a href="https://minecraft.net">Minecraft</a> <a href="https://minecraft.fandom.com/wiki/Data_pack">datapack</a> development easier.
 
 
 ## This Repo
