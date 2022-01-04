@@ -1,10 +1,10 @@
 use std::cmp::max;
 use std::process::exit;
-use crate::{SourceRef, Sources, Token};
+use crate::lexer::{Token, Scope};
 use crate::bash_tools::*;
 
-pub fn missing_closing_brace(sources:&Sources, opening:&SourceRef, at:usize) -> ! {
-	let src = sources.source_by_name(opening.file.clone()).expect("source not found");
+pub fn missing_closing_brace(opening:&Scope, at:usize) -> ! {
+	let src = opening.source_file.get_source();
 	
 	println!("{}MCCS ERROR{}{}: Missing closing brace on line {}{}", 
 		color(BOLD, RED),
@@ -14,7 +14,6 @@ pub fn missing_closing_brace(sources:&Sources, opening:&SourceRef, at:usize) -> 
 		RESET_COLOR
 	);
 	println!("{}", underline_word(
-		src,
 		opening,
 		Some("help: missing paired closing brace"),
 		&color(PLAIN, CYAN)
@@ -22,7 +21,7 @@ pub fn missing_closing_brace(sources:&Sources, opening:&SourceRef, at:usize) -> 
 	exit(1);
 }
 
-pub fn illegal_token(sources:&Sources, token:Token, more:Option<&str>) -> ! {
+pub fn illegal_token(token:Token, more:Option<&str>) -> ! {
 	println!("{}MCCS ERROR{}{}: Illegal Token: {}{}", 
 		color(BOLD, RED), 
 		RESET_COLOR, 
@@ -31,31 +30,31 @@ pub fn illegal_token(sources:&Sources, token:Token, more:Option<&str>) -> ! {
 		RESET_COLOR
 	);
 	
-	let src_ref = token.first_src_ref();
-	let src = sources.source_by_name(src_ref.file.clone()).expect("source not found");
-	println!("{}", underline_word(src, &src_ref, more, &color(BOLD, RED)));
+	let scope = token.get_scope();
+	println!("{}", underline_word(scope, more, &color(BOLD, RED)));
 	exit(1);
 }
 
 
-fn underline_word(src:&String, src_ref:&SourceRef, more:Option<&str>, underline:&String) -> String {
-	let line = get_line(src, src_ref.start);
+fn underline_word(scope:&Scope, more:Option<&str>, underline:&String) -> String {
+	let src = scope.source_file.get_source();
+	let line = get_line(src, scope.start);
 	let (line_start, line_end) = get_line_src(src, line);
 	let line_src = &src[line_start..line_end];
-	let indent_size = max(0, src_ref.start as isize - line_start as isize) as usize;
+	let indent_size = max(0, scope.start as isize - line_start as isize) as usize;
 	let underline_str = format!("{}{}{} {}{}", 
 		underline,
 		" ".repeat(indent_size),
-		"^".repeat(src_ref.end-src_ref.start),
+		"^".repeat(scope.end-scope.start),
 		more.unwrap_or(""),
 		RESET_COLOR
 	);
 	format!("{}    -->{} {}:{}:{}\n{}\n{}{}\n{}{}", 
 		color(BOLD, RED),
 		RESET_COLOR,
-		src_ref.file,
+		scope.source_file.path,
 		line,
-		src_ref.start-line_start,
+		scope.start-line_start,
 		gutter(None),
 		gutter(Some(line)),
 		line_src,
