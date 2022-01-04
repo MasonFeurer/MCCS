@@ -1,4 +1,5 @@
-use crate::{Block, SourceRef, Sources, Token};
+use crate::{Block, SourceRef, Sources, Token, Group, GroupElem};
+use crate::errors::{illegal_token, missing_closing_brace};
 
 pub struct Lexer<'a> {
 	pub main_source:usize,
@@ -49,7 +50,11 @@ impl<'a> Lexer<'a> {
 			return self.next_block();
 		}
 		if first == '(' {
-			
+			return self.next_group(',', ')');
+		}
+		if first == '}' || first == ')' {
+			illegal_token(self.sources, self.last_as_token(), 
+				Some("unexpected rougue closing-brace"));
 		}
 		if first == '\n' {
 			self.index += 1;
@@ -73,16 +78,54 @@ impl<'a> Lexer<'a> {
 		Token::Word(out, self.src_ref(start, end))
 	}
 	
-	fn last_char_word(&self) -> Token {
-		Token::Word(self.chars[self.index].to_string(), 
-		            self.src_ref(self.index, self.index+1))
-	}
-	
-	pub fn next_group(&mut self, sep:char) -> Token {
+	pub fn next_group(&mut self, sep:char, closing:char) -> Token {
+		let opening = self.last_as_token();
+		self.index += 1;
 		
+		let mut elems:Vec<GroupElem> = Vec::new();
+		let mut tokens:Vec<Token> = Vec::new();
+		
+		while self.index+1 < self.size {
+			let c = self.chars[self.index];
+			if c == closing {
+				let closing = self.last_as_token();
+				self.index += 1;
+				
+				if !tokens.is_empty() {
+					elems.push(GroupElem {
+						tokens:tokens.clone(),
+						sep:None,
+					});
+				}
+				
+				return Token::Group(Box::new(Group {
+					opening,
+					closing,
+					elems,
+				}));
+			}
+			if c == sep {
+				let sep = self.last_as_token();
+				self.index += 1;
+				
+				elems.push(GroupElem {
+					tokens:tokens.clone(),
+					sep:Some(sep),
+				});
+				tokens.clear();
+			}
+			else if c != ' ' {
+				let word = self.next();
+				tokens.push(word);
+			}
+			else {
+				self.skip_whitespace();
+			}
+		}
+		missing_closing_brace(self.sources, opening.first_src_ref(), self.index);
 	}
 	pub fn next_block(&mut self) -> Token {
-		let opening = self.last_char_word();
+		let opening = self.last_as_token();
 		self.index += 1;
 		
 		let mut tokens:Vec<Token> = Vec::new();
@@ -90,7 +133,7 @@ impl<'a> Lexer<'a> {
 		while self.index+1 < self.size {
 			let c = self.chars[self.index];
 			if c == '}' {
-				let closing = self.last_char_word();
+				let closing = self.last_as_token();
 				self.index += 1;
 				return Token::Block(Box::new(Block {
 					opening,
@@ -107,8 +150,7 @@ impl<'a> Lexer<'a> {
 				self.skip_whitespace();
 			}
 		}
-		
-		todo!()
+		missing_closing_brace(self.sources, opening.first_src_ref(), self.index);
 	}
 
 	pub fn skip_whitespace(&mut self) {
@@ -122,6 +164,18 @@ impl<'a> Lexer<'a> {
 	pub fn src_ref(&self, start:usize, end:usize) -> SourceRef {
 		SourceRef { file:self.sources.files[self.main_source].0.clone(), start, end }
 	}
+	
+	pub fn last_as_token(&self) -> Token {
+		let c = self.chars[self.index];
+		let src_ref = self.src_ref(self.index, self.index+1);
+		
+		if c.is_sep() {
+			Token::Symbol(c, src_ref)
+		}
+		else {
+			Token::Word(c.to_string(), src_ref)
+		}
+	}
 }
 
 trait CharTools {
@@ -131,10 +185,10 @@ impl CharTools for char {
 	fn is_sep(&self) -> bool {
 		let c = *self;
 		c == '(' || c == ')' ||
-			c == '{' || c == '}' ||
-			c == '[' || c == ']' ||
-			c == ';' || c == ',' ||
-			c == '.' || c == '!' ||
-			c == '|' || c == ':'
+		c == '{' || c == '}' ||
+		c == '[' || c == ']' ||
+		c == ';' || c == ',' ||
+		c == '.' || c == '!' ||
+		c == '|' || c == ':'
 	}
 }

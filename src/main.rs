@@ -4,6 +4,7 @@ pub mod errors;
 pub mod lexer;
 pub mod sources;
 pub mod parser;
+pub mod bash_tools;
 
 use std::fmt::{Display, Formatter};
 use std::fs::File;
@@ -14,7 +15,7 @@ use crate::sources::{SourceRef, Sources};
 pub fn main() {
 	let mut sources = Sources::new();
 	
-	let mut file1 = File::open("/home/mason/Desktop/some_code.mccs").expect("failed to open file");
+	let mut file1 = File::open("/Users/745832/Desktop/some_code.mccs").expect("failed to open file");
 	let mut source1 = String::new();
 	file1.read_to_string(&mut source1).expect("failed to read file");
 	source1 = source1.replace("\t", "    ");
@@ -31,6 +32,7 @@ pub fn main() {
 	}
 }
 
+#[derive(Clone)]
 pub enum Token {
 	Word(String, SourceRef),
 	Symbol(char, SourceRef),
@@ -80,7 +82,7 @@ impl Display for Token {
 				let mut string = String::new();
 				string.push_str("Group");
 				for e in &group.elems {
-					string.push_str("GroupElem:");
+					string.push_str("\n:Elem:");
 					for t in &e.tokens {
 						string.push_str("\n\t");
 						string.push_str(t.to_string().replace("\n", "\n\t").as_str());
@@ -92,16 +94,19 @@ impl Display for Token {
 	}
 }
 
+#[derive(Clone)]
 pub struct Block {
 	opening:Token,
 	closing:Token,
 	tokens:Vec<Token>,
 }
+#[derive(Clone)]
 pub struct Group {
 	opening:Token,
 	closing:Token,
 	elems:Vec<GroupElem>,
 }
+#[derive(Clone)]
 pub struct GroupElem {
 	tokens:Vec<Token>,
 	sep:Option<Token>,

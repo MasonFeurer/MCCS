@@ -1,112 +1,110 @@
 use std::cmp::max;
 use std::process::exit;
-use crate::{Block, SourceRef, Sources, Token};
+use crate::{SourceRef, Sources, Token};
+use crate::bash_tools::*;
 
-
-pub fn illegal_token(token:Token, sources:&Sources, more:Option<&str>) -> ! {
-	eprintln!("ILLEGAL TOKEN");
-	eprintln!("{}", debug_token(token, sources, more));
+pub fn missing_closing_brace(sources:&Sources, opening:&SourceRef, at:usize) -> ! {
+	let src = sources.source_by_name(opening.file.clone()).expect("source not found");
+	
+	println!("{}MCCS ERROR{}{}: Missing closing brace on line {}{}", 
+		color(BOLD, RED),
+		RESET_COLOR,
+		color(BOLD, LIGHT_WHITE),
+		get_line(src, at),
+		RESET_COLOR
+	);
+	println!("{}", underline_word(
+		src,
+		opening,
+		Some("help: missing paired closing brace"),
+		&color(PLAIN, CYAN)
+	));
 	exit(1);
 }
-pub fn debug_token(token:Token, sources:&Sources, more:Option<&str>) -> String {
-	match token {
-		Token::Word(word, src_ref) => {
-			debug_word(word, src_ref, sources, more)
-		}
-		Token::Symbol(symbol, src_ref) => {
-			debug_symbol(symbol, src_ref, sources, more)
-		}
-		Token::NewLine(src_ref) => {
-			debug_new_line(src_ref, sources, more)
-		}
-		Token::Block(block) => {
-			debug_block(*block, sources)
-		}
-	}
-}
-pub fn debug_word(word:String, src_ref:SourceRef, sources:&Sources, more:Option<&str>) -> String {
-	let source = sources.source_by_name(src_ref.file.clone()).expect("source not found");
-	let line_num = get_line_num(src_ref.start, &source);
-	let underlined = underline_word(&src_ref, line_num, source, more);
-	format!("word '{}' \n{}\n", word, underlined)
-}
-pub fn debug_symbol(symbol:char, src_ref:SourceRef, sources:&Sources, more:Option<&str>) -> String {
-	let source = sources.source_by_name(src_ref.file.clone()).expect("source not found");
-	let line_num = get_line_num(src_ref.start, &source);
-	let underlined = underline_word(&src_ref, line_num, source, more);
-	format!("symbol '{}' \n{}\n", symbol, underlined)
-}
-fn debug_new_line(src_ref:SourceRef, sources:&Sources, more:Option<&str>) -> String {
-	let source = sources.source_by_name(src_ref.file.clone()).expect("source not found");
-	let line_num = get_line_num(src_ref.start, &source);
-	let underlined = underline_word(&src_ref, line_num, source, more);
-	format!("line break\n{}\n", underlined)
-}
-fn debug_block(block:Block, sources:&Sources) -> String {
-	let source = sources.source_by_name(block.opening.first_src_ref().file.clone()).expect("source not found");
-	let o_src_ref = block.opening.first_src_ref();
-	let c_src_ref = block.closing.first_src_ref();
-	let o_line_num = get_line_num(o_src_ref.start, source);
-	let c_line_num = get_line_num(c_src_ref.start, source);
-	let o_underlined = underline_word(block.opening.first_src_ref(), o_line_num, source, None);
-	let c_underlined = underline_word(block.closing.first_src_ref(), c_line_num, source, None);
+
+pub fn illegal_token(sources:&Sources, token:Token, more:Option<&str>) -> ! {
+	println!("{}MCCS ERROR{}{}: Illegal Token: {}{}", 
+		color(BOLD, RED), 
+		RESET_COLOR, 
+		color(BOLD, LIGHT_WHITE), 
+		token, 
+		RESET_COLOR
+	);
 	
-	let mut inner = String::new();
-	for t in block.tokens {
-		inner.push('\t');
-		inner.push_str(debug_token(t, sources, None).as_str());
-	}
-	
-	format!("block on line {}\n{}\n{}\nclosing on line {}\n{}\n", o_line_num, o_underlined, inner, c_line_num, c_underlined)
+	let src_ref = token.first_src_ref();
+	let src = sources.source_by_name(src_ref.file.clone()).expect("source not found");
+	println!("{}", underline_word(src, &src_ref, more, &color(BOLD, RED)));
+	exit(1);
 }
 
-fn underline_word(src_ref:&SourceRef, line_num:usize, source:&String, more:Option<&str>) -> String {
-	let (line_start, line_end) = get_line(line_num, source);
-	let line_num_as_string = line_num.to_string();
-	let pre_line = format!("{} | ", line_num_as_string);
-	let pre_indent = format!("{} | ", " ".repeat(line_num_as_string.len()));
-	let line = &source[line_start..line_end];
+
+fn underline_word(src:&String, src_ref:&SourceRef, more:Option<&str>, underline:&String) -> String {
+	let line = get_line(src, src_ref.start);
+	let (line_start, line_end) = get_line_src(src, line);
+	let line_src = &src[line_start..line_end];
 	let indent_size = max(0, src_ref.start as isize - line_start as isize) as usize;
-	let indent = " ".repeat(indent_size);
-	let underline = "^".repeat(src_ref.end-src_ref.start);
-	let more = more.unwrap_or("");
-	format!("  --> {}:{}\n{}\n{}{}\n{}{}{} {}", src_ref.file, src_ref.start ,pre_indent, pre_line, line, pre_indent, indent, underline, more)
+	let underline_str = format!("{}{}{} {}{}", 
+		underline,
+		" ".repeat(indent_size),
+		"^".repeat(src_ref.end-src_ref.start),
+		more.unwrap_or(""),
+		RESET_COLOR
+	);
+	format!("{}    -->{} {}:{}:{}\n{}\n{}{}\n{}{}", 
+		color(BOLD, RED),
+		RESET_COLOR,
+		src_ref.file,
+		line,
+		src_ref.start-line_start,
+		gutter(None),
+		gutter(Some(line)),
+		line_src,
+		gutter(None),
+		underline_str
+	)
+}
+fn gutter(line:Option<usize>) -> String {
+	match line {
+		Some(line) => {
+			format!("{}{:>5} | {}", 
+				color(BOLD, BLUE),
+				line,
+				RESET_COLOR
+			)
+		}
+		None => {
+			format!("{}      | {}", 
+				color(BOLD, BLUE),
+				RESET_COLOR
+			)
+		}
+	}
 }
 
-fn get_line_num(pos:usize, source:&String) -> usize {
-	let mut line_num:usize = 1;
-	for (i, c) in source.chars().enumerate() {
+fn get_line(src:&String, pos:usize) -> usize {
+	let mut line:usize = 1;
+	for (i, c) in src.chars().enumerate() {
 		if c == '\n' {
 			if i > pos { break; }
-			line_num += 1;
+			line += 1;
 		}
 	}
-	line_num
+	line
 }
-fn get_line(line_num:usize, source:&String) -> (usize, usize) {
+fn get_line_src(src:&String, line:usize) -> (usize, usize) {
 	let mut line_start = 0;
 	let mut line_end:Option<usize> = None;
-	let mut cline_num = 1;
-	for (i, c) in source.chars().enumerate() {
+	let mut cline = 1;
+	for (i, c) in src.chars().enumerate() {
 		if c == '\n' {
-			if cline_num == line_num {
+			if cline == line {
 				line_end = Some(i);
 				break;
 			}
-			cline_num += 1;
+			cline += 1;
 			line_start = i+1;
 		}
 	}
-	let line_end = line_end.unwrap_or(source.len());
+	let line_end = line_end.unwrap_or(src.len());
 	(line_start, line_end)
-}
-fn get_lines(first_line:usize, last_line:usize, source:&String) -> (usize, usize) {
-	let start = get_line(first_line, source).0;
-	let end = get_line(last_line, source).1;
-	(start, end)
-}
-fn get_lines_as_str(first_line:usize, last_line:usize, source:&String) -> &str {
-	let start = get_line(first_line, source).0;
-	let end = get_line(last_line, source).1;
-	&source[start..end]
 }

@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 
+#[derive(Clone)]
 pub struct SourceRef {
 	pub file:String,
 	pub start:usize,
