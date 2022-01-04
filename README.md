@@ -11,9 +11,8 @@ This Repo is in it's early stages and will be refined.
 The source code is written in Rust.
 If you have `git` and `rustup` installed, you can use these commands to compile and run the code:<p>
 ```bash
-cd [desired directory]
 git clone "https://github.com/MasonFeurer/MCCS.git"
-cargo build
+cd MCCS
 cargo run
 ```
 
