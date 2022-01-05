@@ -1,12 +1,18 @@
 use std::cmp::max;
 use std::process::exit;
-use crate::lexer::{Token, Scope};
+use crate::lexer::tokens::{Token, Scope};
 use crate::bash_tools::*;
 
-pub fn missing_closing_brace(opening:&Scope, at:usize) -> ! {
+pub struct Help {
+	pub message:String,
+	pub source:String,
+	pub line:usize,
+}
+
+pub fn missing_closing_brace(opening:Scope, at:usize) -> ! {
 	let src = opening.source_file.get_source();
 	
-	println!("{}MCCS ERROR{}{}: Missing closing brace on line {}{}", 
+	println!("{}MCCS ERROR{}{}: missing closing brace on line {}{}", 
 		color(BOLD, RED),
 		RESET_COLOR,
 		color(BOLD, LIGHT_WHITE),
@@ -16,13 +22,14 @@ pub fn missing_closing_brace(opening:&Scope, at:usize) -> ! {
 	println!("{}", underline_word(
 		opening,
 		Some("help: missing paired closing brace"),
-		&color(PLAIN, CYAN)
+		&color(PLAIN, CYAN), 
+		true
 	));
 	exit(1);
 }
 
-pub fn illegal_token(token:Token, more:Option<&str>) -> ! {
-	println!("{}MCCS ERROR{}{}: Illegal Token: {}{}", 
+pub fn illegal_token(token:Token, more:Option<&str>, help:Option<Help>) -> ! {
+	println!("{}MCCS ERROR{}{}: illegal Token: {}{}", 
 		color(BOLD, RED), 
 		RESET_COLOR, 
 		color(BOLD, LIGHT_WHITE), 
@@ -31,12 +38,24 @@ pub fn illegal_token(token:Token, more:Option<&str>) -> ! {
 	);
 	
 	let scope = token.get_scope();
-	println!("{}", underline_word(scope, more, &color(BOLD, RED)));
+	println!("{}", underline_word(scope, more, &color(BOLD, RED), true));
+	if let Some(help) = help {
+		println!("{}help{}: {}", 
+			color(BOLD, CYAN),
+			RESET_COLOR,
+			help.message,
+		);
+		println!("{}", show_code(
+			help.line,
+			&help.source,
+			&color(BOLD, GREEN),
+		));
+	}
 	exit(1);
 }
 
 
-fn underline_word(scope:&Scope, more:Option<&str>, underline:&String) -> String {
+fn underline_word(scope:Scope, more:Option<&str>, underline:&String, show_file_loc:bool) -> String {
 	let src = scope.source_file.get_source();
 	let line = get_line(src, scope.start);
 	let (line_start, line_end) = get_line_src(src, line);
@@ -49,17 +68,34 @@ fn underline_word(scope:&Scope, more:Option<&str>, underline:&String) -> String 
 		more.unwrap_or(""),
 		RESET_COLOR
 	);
-	format!("{}    -->{} {}:{}:{}\n{}\n{}{}\n{}{}", 
-		color(BOLD, RED),
-		RESET_COLOR,
-		scope.source_file.path,
-		line,
-		scope.start-line_start,
+	let file_loc = if show_file_loc {
+		format!("{}    -->{} {}:{}:{}\n", 
+			color(BOLD, RED),
+			RESET_COLOR,
+			scope.source_file.path,
+			line,
+			scope.start-line_start,
+		)
+	}
+	else { "".to_string() };
+	
+	format!("{}{}\n{}{}\n{}{}", 
+		file_loc,
 		gutter(None),
 		gutter(Some(line)),
 		line_src,
 		gutter(None),
 		underline_str
+	)
+}
+fn show_code(line:usize, code:&String, color:&String) -> String {
+	format!("{}\n{}{}{}{}\n{}", 
+		gutter(None),
+		gutter(Some(line)),
+		color,
+		code,
+		RESET_COLOR,
+		gutter(None),
 	)
 }
 fn gutter(line:Option<usize>) -> String {
