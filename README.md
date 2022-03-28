@@ -1,3 +1,6 @@
+# REPO MOVED
+This repo is no longer maintained, and will probably be deleted soon, the new repo is <a href="https://github.com/MasonFeurer/PackLang">PackLang</a>.
+
 # MCCS
 MCCS (Minecraft Command Script) is a programming language designed to make <a href="https://minecraft.net">Minecraft</a> <a href="https://minecraft.fandom.com/wiki/Data_pack">datapack</a> development easier.
 
